@@ -1,4 +1,4 @@
-# 🦊 [Data Kitsune](https://datakirsune.com)
+# 🦊 [Data Kitsune](https://datakitsune.com)
 
 - **Idea** by Alexey [@darkolorin](https://github.com/darkolorin) Moiseenkov
 - **Design** by Oleksandr [@alexbemore](https://github.com/alexbemore) Shatov
