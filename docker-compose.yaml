@@ -1,0 +1,316 @@
+name: deta-kitsune.api
+
+networks:
+  deta-kitsune-network:
+    driver: bridge
+    attachable: true
+    labels:
+      - 'com.docker.compose.project=deta-kitsune'
+      - 'com.docker.compose.network=deta-kitsune-network'
+      - 'com.docker.compose.recreate=always'
+  r2r-network:
+    name: r2r_r2r-network
+    external: true
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-deta_kitsune_api}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: on-failure
+    networks:
+      - deta-kitsune-network
+
+  redis:
+    image: redis:7.2.1
+    ports:
+      - '${REDIS_PORT:-6379}:${REDIS_PORT:-6379}'
+    command: redis-server --save 20 1
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: on-failure
+    networks:
+      - deta-kitsune-network
+
+  migrations:
+    build:
+      context: .
+      target: migrations
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+    depends_on:
+      postgres:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+  telegram-listener:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=telegram-listener
+      - APP_PORT=3000
+      - APP_PREFIX=telegram_listener_
+      - TELEGRAM_BOT_API_TOKEN=${TELEGRAM_BOT_API_TOKEN}
+      - TELEGRAM_BOT_WEBHOOK_DOMAIN=${TELEGRAM_BOT_WEBHOOK_DOMAIN}
+      - TELEGRAM_BOT_WEBHOOK_PATH=${TELEGRAM_BOT_WEBHOOK_PATH}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - R2R_BASE_URL=http://r2r:7272
+      - R2R_EMAIL=admin@example.com
+      - R2R_PASSWORD=change_me_immediately
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - deta-kitsune-network
+      - r2r-network
+
+  links-saver:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=links-saver
+      - APP_PORT=3001
+      - APP_PREFIX=links_saver_
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+  content-parser:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=content-parser
+      - APP_PORT=3002
+      - APP_PREFIX=content_parser_
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_LOCATION=${GOOGLE_LOCATION}
+      - GOOGLE_CREDENTIALS=${GOOGLE_CREDENTIALS}
+      - GROK_API_KEY=${GROK_API_KEY}
+      - FORCE_LOCAL_PROMPTS=${FORCE_LOCAL_PROMPTS:-true}
+    ports:
+      - '3002:3002'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+  description-writer:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=description-writer
+      - APP_PORT=3003
+      - APP_PREFIX=description_writer_
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_LOCATION=${GOOGLE_LOCATION}
+      - GOOGLE_CREDENTIALS=${GOOGLE_CREDENTIALS}
+      - GROK_API_KEY=${GROK_API_KEY}
+      - FORCE_LOCAL_PROMPTS=${FORCE_LOCAL_PROMPTS:-true}
+    ports:
+      - '3003:3003'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+  r2r-injector:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=r2r-injector
+      - APP_PORT=3004
+      - APP_PREFIX=r2r_injector_
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - R2R_BASE_URL=http://r2r:7272
+      - R2R_EMAIL=admin@example.com
+      - R2R_PASSWORD=change_me_immediately
+    ports:
+      - '3004:3004'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+      - r2r-network
+
+  updates-sender:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=updates-sender
+      - APP_PORT=3005
+      - APP_PREFIX=updates_sender_
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-deta_kitsune_api}
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - TELEGRAM_BOT_API_TOKEN=${TELEGRAM_BOT_API_TOKEN}
+    ports:
+      - '3005:3005'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3005/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+  finalizer:
+    build:
+      context: .
+      target: production
+    environment:
+      - APP_MODE=finalizer
+      - APP_PORT=3006
+      - APP_PREFIX=finalizer_
+      - REDIS_CONNECTION_STRING=redis://redis:6379/0
+      - TELEGRAM_BOT_API_TOKEN=${TELEGRAM_BOT_API_TOKEN}
+    ports:
+      - '3006:3006'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3006/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      telegram-listener:
+        condition: service_started
+      r2r-injector:
+        condition: service_started
+    networks:
+      - deta-kitsune-network
+
+volumes:
+  postgres-data:

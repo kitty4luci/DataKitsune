@@ -1,0 +1,1 @@
+CREATE DATABASE deta_kitsune_api;
